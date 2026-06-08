@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: gold_team_performance
+    description: "Win/loss/draw record and goals per team per season"
+    columns:
+      - name: team
+        description: "Team name"
+        tests:
+          - not_null
+      - name: season
+        description: "Football season e.g. 2015/2016"
+        tests:
+          - not_null
+      - name: wins
+        description: "Total wins"
+      - name: losses
+        description: "Total losses"
+      - name: draws
+        description: "Total draws"
+
+  - name: gold_home_away_performance
+    description: "Home performance metrics per team per season"
+    columns:
+      - name: team
+        tests:
+          - not_null
+
+  - name: gold_top_scoring_teams
+    description: "Total goals scored per team per season"
+    columns:
+      - name: team
+        tests:
+          - not_null

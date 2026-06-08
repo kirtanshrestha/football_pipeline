@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: raw
+    database: football-pipeline-498616
+    schema: raw
+    tables:
+      - name: match
+      - name: team
+      - name: player
+      - name: league
+      - name: country
