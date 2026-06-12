@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: silver_live_matches
+    description: "Cleaned and enriched live match data with readable dates and results"
+    columns:
+      - name: match_id
+        tests:
+          - not_null
+          - unique
+      - name: home_team
+        tests:
+          - not_null
+      - name: away_team
+        tests:
+          - not_null

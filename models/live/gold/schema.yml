@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: gold_team_form
+    description: "Win/loss/draw record and goals per team per tournament"
+    columns:
+      - name: team
+        tests:
+          - not_null
+      - name: tournament
+        tests:
+          - not_null
+
+  - name: gold_home_away_analysis
+    description: "Home vs away performance comparison per team"
+    columns:
+      - name: team
+        tests:
+          - not_null

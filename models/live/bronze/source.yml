@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: dev
+    database: football-pipeline-498616
+    schema: dev
+    tables:
+      - name: live_matches
