@@ -1,35 +1,48 @@
 # Football Analytics Pipeline
 
-An end-to-end data engineering pipeline that ingests European football match data, transforms it through a medallion architecture using dbt, and stores analytics-ready datasets in Google BigQuery.
+An end-to-end data engineering project covering two football data pipelines — a historical analytics pipeline built on Kaggle data, and a live pipeline pulling real match data from the SofaScore API through Kafka into BigQuery with a Looker Studio dashboard.
 
 Built as part of **#60DaysOfLearning2026** — Leapfrog Learning Path.
 
 ---
 
-## Architecture
+## Two Pipelines
 
+### Pipeline 1 — Historical Analytics (Kaggle)
 ```
-Kaggle Dataset (SQLite)
+Kaggle SQLite Dataset
         │
         ▼
-Python ingestion script
+Python ingestion
         │
         ▼
-┌─────────────────┐
-│     BigQuery    │
-│                 │
-│  raw            │  ← raw tables loaded directly from SQLite
-│  ├── match      │
-│  ├── team       │
-│  ├── player     │
-│  ├── league     │
-│  └── country    │
-│                 │
-│  dev            │  ← dbt transformed layers
-│  ├── bronze_*   │  Raw copy, untouched
-│  ├── silver_*   │  Cleaned, joined, typed
-│  └── gold_*     │  Analytics-ready metrics
-└─────────────────┘
+BigQuery (raw dataset)
+        │
+        ▼
+dbt Bronze → Silver → Gold
+        │
+        ▼
+Analytics ready tables
+```
+
+### Pipeline 2 — Live Match Data (SofaScore API)
+```
+SofaScore API (6 top clubs)
+        │
+        ▼
+Python ingestion
+        │
+        ▼
+Kafka (football-matches topic)
+        │
+        ▼
+Consumer → BigQuery (dev.live_matches)
+        │
+        ▼
+dbt Bronze → Silver → Gold
+        │
+        ▼
+Looker Studio Dashboard
 ```
 
 ---
@@ -38,12 +51,13 @@ Python ingestion script
 
 | Layer | Tool |
 |---|---|
-| Data Source | Kaggle — European Soccer Database |
-| Ingestion | Python + pandas |
+| Data Sources | Kaggle European Soccer Database, SofaScore API |
+| Streaming | Apache Kafka + Zookeeper (Docker) |
 | Cloud Warehouse | Google BigQuery |
 | Transformation | dbt (data build tool) |
+| Dashboard | Looker Studio |
 | Language | Python 3, SQL |
-| Libraries | pandas, google-cloud-bigquery, dbt-bigquery |
+| Libraries | pandas, kafka-python, google-cloud-bigquery, dbt-bigquery, python-dotenv |
 
 ---
 
@@ -52,102 +66,135 @@ Python ingestion script
 ```
 football_pipeline/
 ├── models/
-│   ├── bronze/
-│   │   ├── bronze_matches.sql       # Raw match data
-│   │   ├── bronze_teams.sql         # Raw team data
-│   │   ├── bronze_players.sql       # Raw player data
-│   │   └── sources.yml              # Raw source declarations
+│   ├── bronze/                          # Kaggle pipeline bronze layer
+│   │   ├── bronze_matches.sql
+│   │   ├── bronze_teams.sql
+│   │   ├── bronze_players.sql
+│   │   └── sources.yml
 │   │
-│   ├── silver/
-│   │   ├── silver_matches.sql       # Cleaned + joined matches
-│   │   └── schema.yml               # Data quality tests
+│   ├── silver/                          # Kaggle pipeline silver layer
+│   │   ├── silver_matches.sql
+│   │   └── schema.yml
 │   │
-│   └── gold/
-│       ├── gold_team_performance.sql       # Wins/losses/draws per team per season
-│       ├── gold_home_away_performance.sql  # Home performance metrics
-│       ├── gold_top_scoring_teams.sql      # Goals scored per team per season
-│       └── schema.yml                      # Tests + documentation
+│   ├── gold/                            # Kaggle pipeline gold layer
+│   │   ├── gold_team_performance.sql
+│   │   ├── gold_home_away_performance.sql
+│   │   ├── gold_top_scoring_teams.sql
+│   │   └── schema.yml
+│   │
+│   └── live/                            # Live pipeline layers
+│       ├── bronze/
+│       │   ├── bronze_live_matches.sql
+│       │   └── sources.yml
+│       ├── silver/
+│       │   ├── silver_live_matches.sql
+│       │   └── schema.yml
+│       └── gold/
+│           ├── gold_team_form.sql
+│           ├── gold_home_away_analysis.sql
+│           └── schema.yml
 │
-├── load_to_bigquery.py    # Loads raw SQLite data into BigQuery
-├── dbt_project.yml        # dbt project configuration
+├── load_to_bigquery.py     # Loads Kaggle SQLite data into BigQuery
+├── dbt_project.yml
 └── README.md
 ```
 
 ---
 
-## Layers Explained
+## Pipeline 1 — Kaggle Historical Data
 
-**Bronze** — exact copy of raw source tables. No transformations. Exists so original data is always preserved and recoverable.
+### Layers
+
+**Bronze** — exact copy of raw SQLite tables. No transformations.
 
 **Silver** — cleaned and enriched:
-- Casted date strings to proper DATE type
+- Cast date strings to proper DATE type
 - Removed null matches
-- Joined team names onto match records so `home_team_api_id: 9825` becomes `home_team: Arsenal`
+- Joined team names onto match records
 - Deduplicated records from source data quality issues
 
 **Gold** — analytics-ready metrics:
-- `gold_team_performance` — wins, losses, draws, goals scored/conceded per team per season
-- `gold_home_away_performance` — home win rate, avg goals at home per team per season
-- `gold_top_scoring_teams` — total goals scored per team per season across all competitions
+- `gold_team_performance` — wins, losses, draws, goals per team per season
+- `gold_home_away_performance` — home win rate and avg goals at home
+- `gold_top_scoring_teams` — total goals per team per season
+
+### Running
+
+```bash
+pip install dbt-bigquery google-cloud-bigquery pandas
+python load_to_bigquery.py
+cd football_pipeline
+dbt run
+dbt test
+```
+
+---
+
+## Pipeline 2 — Live SofaScore Data
+
+### Teams Tracked
+Arsenal, Chelsea, Liverpool, Man City, Barcelona, Real Madrid, PSG
+
+### Layers
+
+**Bronze** — raw copy of `live_matches` table in BigQuery.
+
+**Silver** — cleaned and enriched:
+- Converted Unix timestamps to proper DATE and DATETIME
+- Converted `winner_code` (1/2/0) to readable `home`/`away`/`draw`
+- Standardized match status (`AP`, `AET`, `Ended` → `is_finished`)
+- Added `goal_difference` column
+
+**Gold** — analytics-ready metrics:
+- `gold_team_form` — wins, losses, draws, goals, win percentage per team per tournament
+- `gold_home_away_analysis` — home vs away win percentage comparison per team
+
+### Running
+
+```bash
+# Start Kafka
+cd kafka-football
+docker compose up -d
+
+# Ingest from API
+cd live-football
+python ingest.py
+
+# Start consumer to load into BigQuery
+python consumer.py
+
+# Run dbt transformations
+cd football_pipeline
+dbt run --select live
+dbt test --select live
+```
+
+### Dashboard
+
+Connected to Looker Studio — showing team form, home vs away win percentages across top European clubs.
 
 ---
 
 ## Data Quality
 
-dbt tests run on every model:
-- `not_null` checks on key columns across Silver and Gold
-- `unique` check on match IDs — discovered source data has duplicate IDs, documented and handled via deduplication in Silver
-- All tests run via `dbt test`
-
----
-
-## Running the Pipeline
-
-**1. Install dependencies**
-```bash
-pip install dbt-bigquery google-cloud-bigquery pandas
-```
-
-**2. Set up GCP credentials**
-
-Create a service account in Google Cloud with BigQuery Admin role, download the JSON key, save as `gcp_key.json`.
-
-**3. Load raw data to BigQuery**
-```bash
-python load_to_bigquery.py
-```
-
-**4. Run dbt transformations**
-```bash
-cd football_pipeline
-dbt run
-```
-
-**5. Run data quality tests**
-```bash
-dbt test
-```
-
-**6. View documentation**
-```bash
-dbt docs generate
-dbt docs serve
-```
+dbt tests across both pipelines:
+- `not_null` on all key columns
+- `unique` on match IDs
+- Source data duplicate ID issue discovered and handled via deduplication in Silver
 
 ---
 
 ## Key Learnings
 
-- **Medallion architecture in SQL** — same Bronze→Silver→Gold concept as Python pipelines but implemented purely in dbt models
-- **dbt dependency management** — `{{ ref() }}` automatically determines run order, no manual orchestration needed
-- **Materialized tables vs views** — views re-run queries every time, tables store results. Critical for performance at scale
-- **Real data quality issues** — source dataset had duplicate match IDs, required investigation and engineering decision on how to handle
-- **dbt docs** — documentation and lineage diagrams generated automatically from model definitions, no extra work
+- **Medallion architecture in SQL** — Bronze→Silver→Gold implemented purely in dbt
+- **Kafka for streaming** — real API data flowing through a message broker before landing in BigQuery
+- **dbt dependency management** — `{{ ref() }}` automatically determines run order
+- **Materialized tables vs views** — critical performance decision at scale
+- **Real data quality issues** — duplicate IDs, bad date formats, inconsistent status codes
+- **Looker Studio** — free dashboarding tool that connects directly to BigQuery with no extra setup
 
 ---
 
-## Dataset
+## Part of
 
-European Soccer Database by Hugo Mathien — 11 European leagues, 25,000+ matches, 10,000+ players across multiple seasons.
-
-Available on Kaggle: https://www.kaggle.com/datasets/hugomathien/soccer
+**#60DaysOfLearning2026** — Leapfrog Learning Path
