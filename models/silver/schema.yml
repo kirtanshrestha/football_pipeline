@@ -2,13 +2,22 @@ version: 2
 
 models:
   - name: silver_matches
+    description: "Cleaned and standardized match data from raw source"
     columns:
       - name: id
+        description: "Unique match ID"
         tests:
           - not_null
+          - unique
       - name: home_team
+        description: "Name of the home team"
         tests:
           - not_null
       - name: away_team
+        description: "Name of the away team"
+        tests:
+          - not_null
+      - name: season
+        description: "Season the match was played in"
         tests:
           - not_null

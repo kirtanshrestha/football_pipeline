@@ -1,5 +1,4 @@
 {{ config(materialized='table') }}
-
 WITH matches AS (
     SELECT
         id,
@@ -16,12 +15,11 @@ WITH matches AS (
         AND away_team_goal IS NOT NULL
     QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY id) = 1
 ),
-
 teams AS (
     SELECT team_api_id, team_long_name
     FROM {{ ref('bronze_teams') }}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY team_api_id ORDER BY team_api_id) = 1
 )
-
 SELECT
     m.id,
     m.season,

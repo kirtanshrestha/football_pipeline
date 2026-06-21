@@ -3,6 +3,9 @@ version: 2
 models:
   - name: gold_team_performance
     description: "Win/loss/draw record and goals per team per season"
+    tests:
+      - unique:
+          column_name: "CONCAT(team, season)"
     columns:
       - name: team
         description: "Team name"
@@ -13,16 +16,21 @@ models:
         tests:
           - not_null
       - name: wins
-        description: "Total wins"
+        description: "Total wins in the season"
       - name: losses
-        description: "Total losses"
+        description: "Total losses in the season"
       - name: draws
-        description: "Total draws"
+        description: "Total draws in the season"
 
   - name: gold_home_away_performance
-    description: "Home performance metrics per team per season"
+    description: "Home vs away performance metrics per team per season"
     columns:
       - name: team
+        description: "Team name"
+        tests:
+          - not_null
+      - name: season
+        description: "Football season"
         tests:
           - not_null
 
@@ -30,5 +38,10 @@ models:
     description: "Total goals scored per team per season"
     columns:
       - name: team
+        description: "Team name"
+        tests:
+          - not_null
+      - name: season
+        description: "Football season"
         tests:
           - not_null
